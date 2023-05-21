@@ -1,359 +1,428 @@
-import codecs
 import sys
-import os
-import heapq
-import queue
+from queue import LifoQueue
+#https://www.geeksforgeeks.org/python-program-to-convert-a-list-to-string/
+#https://www.geeksforgeeks.org/stack-in-python/
 
-#https://www.w3schools.com/python/python_dictionaries.asp
-#https://www.geeksforgeeks.org/how-to-use-sys-argv-in-python/
-#https://www.geeksforgeeks.org/queue-in-python/
-#https://www.geeksforgeeks.org/python-nested-dictionary/
-#https://www.geeksforgeeks.org/g-fact-41-multiple-return-values-in-python/
-#https://www.geeksforgeeks.org/priority-queue-in-python/
+def loadingClauses(path):
 
+    list=[]
 
+    with open(path, 'r') as clauses:
 
-class node:
-
-    def __init__(self, state, parent=None, cost=0.0, funct=0.0):
-        self.parent= parent
-        self.cost=cost
-        self.state=state
-        self.funct=funct
-
-
-    def expand(self, states):
-        temp =states.get(self.state)
-        successors= queue.Queue()
-        for k, v in temp.items():
-            new_state=k
-            new_cost= self.cost + int(v)
-            new_parent= self
-            new_node= node(new_state, new_parent, new_cost)
-            successors.put(new_node)
-
-        return successors
-
-    def cost_and_heur(self, heur):
-        return int(heur) + self.cost
-
-
-    def __lt__(self, other):
-
-        if self.funct==0:
-            return self.cost<other.cost
-        else:
-            return (self.cost+ int(self.funct) < (other.cost+ int(other.funct)))
-
-# def path(self):
-
-
-def output(algorithm, heuristic, found_solution, visited, length, cost, path):
-    if algorithm == 'A-STAR':
-        print('# {0} {1}'.format(algorithm, heuristic))
-    else:
-        print('# {0}'.format(algorithm))
-
-    if found_solution == 'no':
-        print('[FOUND_SOLUTION]: {0}'.format(found_solution))
-
-    else:
-        print('[FOUND_SOLUTION]: {0}'.format(found_solution))
-        print('[STATES_VISITED]: {0}'.format(visited))
-        print('[PATH_LENGTH]: {0}'.format(length))
-        print('[TOTAL_COST]: {0}'.format(cost))
-
-        formattedPath=' => '.join(n for n in path)
-        print('[PATH]: {0} '.format(formattedPath))
-
-def heurLoading(path):
-
-    heuristics= {}
-
-    with codecs.open(path, 'r', 'utf-8') as heur:
-
-        for line in heur:
-
-            splitLine=line.strip().split(':')
-
-            heuristics[splitLine[0]]=splitLine[1]
-
-    return heuristics
-
-
-
-def dataLoading(path):
-    states = {}
-
-    start=''
-    goals=[]
-    with codecs.open(path, 'r', 'utf-8') as stat:
-        for  line in stat:
+        for line in clauses:
 
             if '#' in line:
                 continue
-            elif ':' not in line:
-                if start == '':
-                    start = line.replace('\n', '')
-                else:
-                    goals=line
+            list.append(line.strip().lower())
 
-            else:
-                state, next_state = line.strip().split(':')
+    goalState= list[len(list)-1]
 
-                test=next_state.strip().split(' ')
+    list.remove(goalState)
 
-                transitions = {}
-                for t in test :
-                    if t != '':
-                        k, v = t.split(',')
-                        transitions[k]=v
+    return set(list), goalState
 
 
+def loadingClausesCooking(path):
+    list = []
+
+    with open(path, 'r') as clauses:
+
+        for line in clauses:
+
+            if '#' in line:
+                continue
+            list.append(line.strip().lower())
+
+    return set(list)
+
+def loadingInput(path):
+
+    inputs=[]
+
+    with open(path, 'r') as input:
+
+        for line in input:
+
+            if '#' in line:
+                continue
+            input=tuple()
+            command=line.lower().strip().split(' ')
+            clause=' '.join(l for l in command[0:len(command)-1])
+            input=(clause, command[-1])
+            inputs.append(input)
 
 
-                states[state.strip()] = transitions
+    return inputs
+
+def plResolve(c1, c2):
+    resolvents = set()
+
+    if c1 == '~' + c2 or '~' + c1 == c2:
+
+        resolvents.add('NIL')
+        return resolvents
+
+    c1 = c1.split()
+    c2 = c2.split()
+    resolved=''
+
+    removed=False
+
+    for l in c1:
+
+        if l.startswith('~'):
+
+            temp=l.replace('~', '')
+
+            if  temp in c2:
+
+                c2.remove(temp)
+
+                c1.remove(l)
+                removed=True
+                break
+        elif l != 'v':
+
+            temp='~'+l
+
+            if temp in c2:
+
+                c2.remove(temp)
+
+                c1.remove(l)
+                removed = True
+                break
+
+    for l in c1:
+        resolved = resolved + ' ' + l
+
+    for l in c2:
+        resolved = resolved + ' ' + l
+    if removed:
+        resolvents.add(resolved)
+
+    return resolvents
 
 
+def NILcheck(resolvents, clauses):
 
-    return states, start, goals
+    if 'NIL' in resolvents:
+        return True
 
-def BFS(s0, succ, goal):
+    for l in resolvents:
+        for l2 in clauses:
+            l2split=l2.split()
+            if len(l2.replace('v','').split())==1:
+                if len(l.replace('v','').split())==1:
+                    for a in l.split():
 
-    open =queue.Queue()
+                        if a.startswith('~') and a != 'v':
 
-    open.put(s0)
+                            temp=a.replace('~', '')
 
-    visited= set()
-    visited.add(s0.state)
+                            if temp in l2split:
 
-    while not open.empty() :
-        n= open.get()
+                                return True
+                        elif a !='v':
+                            a = '~' + a
+                            temp=a
+                            if temp in l2split:
+                                return True
 
-        if n.state in goal:
-            path = []
-            cost = n.cost
-            while n:
-                path.append(n.state)
-                n = n.parent
+    return False
 
-            return 'yes', len(visited), len(path), cost, path[::-1]
+def removeSubsumed(cleanClauses):
 
-        expanded = n.expand(succ)
+    readytoremove=set()
 
-        while not expanded.empty():
+    for clause1 in cleanClauses:
 
-            exp= expanded.get()
+            for clause2 in cleanClauses:
 
-            if exp.state not in visited:
-                visited.add(exp.state)
-                open.put(exp)
+                    setclause1=set(clause1.split())
+                    setclause2=set(clause2.split())
 
-    return 'no'
+                    if setclause1 != setclause2 and setclause1.issubset(setclause2):
+
+                        readytoremove.add(clause2)
+                    elif setclause1 != setclause2 and setclause2.issubset(setclause1):
+
+                        readytoremove.add(clause1)
+
+    for clause in readytoremove:
+        cleanClauses.remove(clause)
+
+    return cleanClauses
+
+def removeUnnecessary(clauses):
+
+    cleanClauses=set()
+
+    for clause in clauses:
+
+        clause=set(clause.split())
+
+        if len(clause) > 1:
+            temp = ''
+            tautology = True
+            for l in clause:
+
+                if l.startswith('~')  and l != 'v':
+
+                    if l.replace('~', '') in clause:
+                        tautology=False
+                        break
+
+                elif l != 'v':
+                    if ('~' + l) in clause:
+                        tautology = False
+                        break
+
+                temp=temp+   ' ' + l
+
+            if tautology:
+                cleanClauses.add(temp)
+        else:
+            cleanClauses.add(clause.pop())
+
+    fullyclean=removeSubsumed(cleanClauses)
 
 
-def UCS(s0, succ, goal):
-
-    open=queue.PriorityQueue()
-
-    open.put(s0)
-
-    visited = set()
+    return fullyclean
 
 
+def plResolution(F, G):
 
-    while not open.empty():
+    clauses= F
 
-        n=open.get()
+    trueG= G
+    isTrue=False
 
-        if n.state in goal:
-            path = []
-            cost=n.cost
-            while n:
-                path.append(n.state)
-                n = n.parent
+    if len(G.split()) > 2 :
 
+        temp=''
+        for l in G.split():
 
+            if 'v' in l:
+                continue
+            elif '~' in l and l!= ' ':
+                temp= temp + l.replace('~', '')
+            elif '~' not in l and l!= ' ':
+                temp= temp + ' ~' + l
 
-            return 'yes',  len(visited),len(path),  cost, path[::-1]
+            G=temp
+    else:
+        temp=''
+        if "~" in G:
 
-        expanded= n.expand(succ)
-        visited.add(n.state)
-        while not expanded.empty():
+            temp=G.replace('~', '')
+            G=temp
+        else:
 
-            exp=expanded.get()
+            temp="~"+G
+            G=temp
 
-            if exp.state not in visited:
+    sos=set(G.split())
 
-                open.put(exp)
+    for l in G.split():
+        clauses.add(l)
 
-    return 'no'
+    new= set()
 
-def ASTAR(s0, succ, goal, h):
+    originalClauses=clauses.copy()
 
-    open=queue.PriorityQueue()
-
-    open.put(s0)
+    usedClauses=LifoQueue()
 
     closed=set()
 
-    while not open.empty():
-        n=open.get()
+    while True:
 
-        if n.state in goal:
-            path = []
-            cost = n.cost
-            while n:
-                path.append(n.state)
-                n = n.parent
+        clauses.update(new)
+
+        newset = removeUnnecessary(clauses)
+
+        clauses.clear()
+
+        clauses=newset.copy()
+        newset.clear()
+
+        for c1 in clauses:
+            for c2 in clauses:
+                if (c1 in sos or c2 in sos) and c1 != c2:
+
+                    check1 = (c1,c2)
+                    check2=(c2,c1)
+                    if check1 not in closed and check2 not in closed:
+
+                        resolvents = plResolve(c1, c2)
+                        closed.add(tuple([c1,c2]))
+                        closed.add(tuple([c2,c1]))
+
+                        res=resolvents.copy()
+
+                        if res !=set():
+                            used = (res.pop(), c1, c2)
+                            usedClauses.put(used)
+
+                        newset1 = removeUnnecessary(resolvents)
+
+                        resolvents.clear()
+
+                        resolvents = newset1.copy()
+                        newset1.clear()
+
+                        if resolvents != set():
+                            sos.update(resolvents)
+
+                            newset2 = removeUnnecessary(sos)
+
+                            sos.clear()
+
+                            sos = newset2.copy()
+                            newset2.clear()
+
+                            new.update(resolvents)
+
+                            newset3 = removeUnnecessary(new)
+
+                            new.clear()
+
+                            new = newset3.copy()
+                            newset3.clear()
+
+                            if resolvents != set():
+                                isTrue = NILcheck(resolvents, clauses)
+
+                            if isTrue:
+
+                                for c in originalClauses:
+                                    print(c)
+
+                                print('===============')
+                                first=True
+                                parents=set()
+                                child=''
+                                used=[]
+
+                                while not usedClauses.empty():
+
+                                    child, p1, p2 = usedClauses.get()
+
+                                    p1clean=''
+
+                                    for l in sorted(p1.split()):
+
+                                        if l!='v':
+                                            p1clean +=' ' + l
+
+                                    p2clean = ''
+                                    for l in sorted(p2.split()):
+                                        if l!='v':
+                                            p2clean +=' ' + l
+                                    childClean=''
+                                    for l in sorted(child.split()):
+                                        if l!='v':
+                                            childClean +=' ' + l
+
+                                    if childClean in parents or first:
+
+                                        parents.add(p1clean)
+                                        parents.add(p2clean)
+                                        used.append((childClean,p1clean,p2clean))
+                                        first=False
+
+                                for c in reversed(used):
+
+                                    child, p1, p2 = c
+                                    print('{0}  ({1}, {2})'.format(child, p1, p2))
+
+                                if 'v' in child:
+                                    if '~' in child:
+                                        print('NIL ({0}, {1})'.format(child.replace('v','').replace('~',''),child.replace('v','')))
+                                    else:
+                                        print('NIL ({0}, {1})'.format('~'+child.replace('v', ''),child.replace('v', '')))
+                                else:
+                                    if '~' in child:
+                                        print('NIL ({0}, {1})'.format(child.replace('v', '').replace('~', ''),child.replace('v', '')))
+                                    else:
+                                        print('NIL ({0}, {1})'.format('~' + child.replace('v', ''), child.replace('v', '')))
+                                print('===============')
+
+                                print('[CONCLUSION]: {0} is  {1}'.format(trueG, isTrue))
+                                return True
+
+                    else:
+                        continue
+
+        if new.issubset(clauses):
+
+            print('[CONCLUSION]: {0} is  {1}'.format(trueG, 'unknown'))
+            return False
 
 
-            return 'yes', cost ,path[::-1] , len(closed),len(path)
-        closed.add(n.state)
-        expanded=n.expand(succ)
-
-        while not expanded.empty():
-            exp=expanded.get()
-            if exp in closed:
-                continue
-
-            exp.funct=h.get(exp.state)
-
-            open.put(exp)
 
 
+def cooking(clauses, input):
 
-    return 'no'
+    for i in input:
 
+        clause, command = i
 
-def is_optimistic(heuristic, states, goal, path):
+        temp = clauses.copy()
 
-        optimistic=True
-        print('# HEURISTIC-OPTIMISTIC {}'.format(path))
+        if command =='?':
+            print('\nUser’s command: {0} ?\n'.format(clause))
+            plResolution(temp, clause)
 
-        for state, value in heuristic.items():
+        elif command=='+':
+            print('\nUser’s command: {0} +'.format(clause))
+            print('add {0} \n'.format(clause))
 
-            new_node=node(state=state)
+            temp.clear()
+            temp=clauses.copy()
+            temp.add(clause)
+            clauses.clear()
+            clauses=temp.copy()
+        elif command=='-':
 
-            s,v, p, cost , m= UCS(new_node,states, goal )
-
-            if float(value) > float(cost):
-                optimistic=False
-                print('[CONDITION]: [ERR] h({0}) <= h*: {1} <= {2}'.format(state, float(value), float(cost)))
-
-            else:
-                print('[CONDITION]: [OK] h({0}) <= h*: {1} <= {2}'.format(state, float(value), float(cost)))
-
-        if optimistic:
-            print('[CONCLUSION]: Heuristic is optimistic.')
-        else:
-            print('[CONCLUSION]: Heuristic is not optimistic.')
-
-def is_consistent(heuristic, states, path):
-
-    print('# HEURISTIC-CONSISTENT {0}'.format(path))
-    is_consistent=True
-    for state, value in states.items():
-
-        for inner_state, inner_value in value.items():
-
-            if float(heuristic.get(state))  <= float(heuristic.get(inner_state)) + float(inner_value):
-                print('[CONDITION]: [OK] h({0}) <= h({1}) + c: {2}  <= {3} + {4}'.format(state, inner_state, float(heuristic.get(state)), float(heuristic.get(inner_state)) , float(inner_value)))
-
-            else:
-                print('[CONDITION]: [ERR]  h({0}) <= h({1})  + c: {2} <= {3} + {4}'.format(state, inner_state, float(heuristic.get(state)), float(heuristic.get(inner_state)) , float(inner_value)))
-                is_consistent=False
-
-
-
-
-    if is_consistent:
-        print('[CONCLUSION]: Heuristic is consistent.')
-    else:
-        print('[CONCLUSION]: Heuristic is not consistent.')
+            if clause in clauses:
+                print('\nUser’s command: {0} -'.format(clause))
+                print('remove {0}\n'.format(clause))
+                temp.clear()
+                temp = clauses.copy()
+                temp.discard(clause)
+                clauses.clear()
+                clauses = temp.copy()
 
 def main():
-    data = []
+
+    data= []
 
     data = sys.argv
 
-    if 'bfs' in data:
+    if 'resolution' in data:
 
-        index = data.index('--ss')
+        index=  data.index('resolution')
 
-        states = data[index + 1]
+        res= data[index+1]
 
+        clauses, goal= loadingClauses(res)
 
-        states, start, goals= dataLoading(states)
+        plResolution(clauses, goal)
 
-        start_node= node(state=start)
+    elif 'cooking' in data:
 
-        found,visited, pathlen, cost, path=BFS(start_node,states, goals )
+        index = data.index('cooking')
 
-        output('BFS', '',found, visited, pathlen, cost, path)
+        clausesfile=data[index+1]
 
-    elif 'ucs' in data:
-        index = data.index('--ss')
+        ordersfile = data[index+2]
 
-        states = data[index + 1]
+        clauses =loadingClausesCooking(clausesfile)
 
-        states, start, goal = dataLoading(states)
+        orders =loadingInput(ordersfile)
 
-        start_node=node(start)
-
-        found,visited, pathlen, cost, path=UCS(start_node,states,goal)
-
-        output('UCS', 'no',found, visited, pathlen, cost, path)
-
-    elif 'astar' in data:
-
-        index = data.index('--ss')
-        heuristicIndex = data.index('--h')
-
-        states = data[index + 1]
-        heuristic = data[heuristicIndex + 1]
-
-        states, start, goals = dataLoading(states)
-
-        start_node = node(start)
-
-        heur=heurLoading(heuristic)
-
-        found,cost, path, visited, lenpath=ASTAR(start_node,states,goals,heur)
-
-        output('A-STAR', heuristic, found, visited, lenpath, cost, path )
-
-    elif '--check-optimistic' in data:
-
-        index=data.index('--ss')
-
-        path= data[index+1]
-
-        states, start, goal = dataLoading(path)
-
-        heurindex=data.index('--h')
-
-        pathheur=data[heurindex+1]
-
-        heur=heurLoading(pathheur)
-
-        is_optimistic(heur,states, goal,pathheur)
-
-    elif '--check-consistent' in data:
-
-        index = data.index('--ss')
-
-        path = data[index + 1]
-
-        states, start, goal = dataLoading(path)
-
-        heurindex = data.index('--h')
-
-        pathheur = data[heurindex + 1]
-
-        heur = heurLoading(pathheur)
-
-        is_consistent(heur, states, pathheur)
+        cooking(clauses,orders)
 
 if __name__ == '__main__':
     main()
